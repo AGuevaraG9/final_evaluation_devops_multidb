@@ -1,0 +1,209 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: devops-final-exam
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+  namespace: devops-final-exam
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend-container
+        image: aguevarar29/backend-final-exam:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+        envFrom:
+        - configMapRef:
+            name: env-config
+        - secretRef:
+            name: db-password-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: devops-final-exam
+spec:
+  type: LoadBalancer
+  selector:
+    app: backend
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 3000
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: env-config
+  namespace: devops-final-exam
+data:
+  DB_HOST: "mysql-service"
+  DB_USER_NAME: "user-root"
+  DB_NAME: "users_db"
+  MY_DATABASE_DRIVER: "mysql"  # (mysql, mongo, postgres)
+  DB_PORT: "3306"  # Puerto para MySQL, 5432 para PostgreSQL, 27017 para MongoDB
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-password-secret
+  namespace: devops-final-exam
+type: Opaque
+data:
+  DB_PASSWORD: cm9vdHBhc3N3b3JkYWc=
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: db-backup-cronjob
+  namespace: devops-final-exam
+spec:
+  schedule: "0 */3 * * *"
+  successfulJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: db-backup-container
+              image: busybox
+              command: ["/bin/sh", "-c", "/backup.sh"]
+          restartPolicy: OnFailure
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mysql-pod
+  namespace: devops-final-exam
+  labels:
+    app: mysql
+spec:
+  containers: 
+  - name: mysql-container
+    image: mysql:8.0
+    env:
+    - name: MYSQL_ROOT_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: db-password-secret
+          key: DB_PASSWORD
+    - name: MYSQL_DATABASE
+      valueFrom:
+        configMapKeyRef:
+          name: env-config
+          key: DB_NAME
+    ports:
+      - containerPort: 3306
+    volumeMounts:
+    - name: mysql-data
+      mountPath: /var/lib/mysql
+    - name: init-scripts
+      mountPath: /docker-entrypoint-initdb.d
+  volumes:
+  - name: mysql-data  
+    emptyDir: {}
+  - name: init-scripts
+    configMap:
+      name: mysql-script-inicial
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-service
+  namespace: devops-final-exam
+spec:
+  selector:
+    app: mysql
+  ports:
+  - protocol: TCP
+    port: 3306 
+    targetPort: 3306
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: postgres-pod
+  namespace: devops-final-exam
+  labels:
+    app: postgres
+spec:
+  containers: 
+  - name: postgres-container
+    image: postgres:13
+    env:
+    - name: POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: db-password-secret
+          key: DB_PASSWORD
+    - name: POSTGRES_DATABASE
+      valueFrom:
+        configMapKeyRef:
+          name: env-config
+          key: DB_NAME
+    ports:
+      - containerPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: devops-final-exam
+spec:
+  selector:
+    app: postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mongodb-pod
+  namespace: devops-final-exam
+  labels:
+    app: mongodb
+spec:
+  containers:
+    - name: mongodb-container
+      image: mongo:4.4
+      env:
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-password-secret
+              key: DB_PASSWORD
+        - name: MONGO_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: env-config
+              key: DB_NAME
+      ports:
+        - containerPort: 27017
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-service
+  namespace: devops-final-exam
+spec:
+  selector:
+    app: mongodb
+  ports:
+    - protocol: TCP
+      port: 27017
+      targetPort: 27017
