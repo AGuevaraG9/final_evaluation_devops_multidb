@@ -6,29 +6,7 @@ pipeline {
     }
 
     stages {
-        stage ('Install dependencies') {
-            agent {
-                docker {
-                    image 'node:18-alpine'
-                }
-            }
-            steps {
-                echo "Remove old dependencies"
-                sh 'rm -rf node_modules package-lock.json'
-                sh 'npm install'
-            }
-        }
-
-        stage ('Build project') {
-            agent {
-                docker { image 'node:18-alpine'}
-            }
-            steps {
-                sh 'npm run build'
-            }
-        }
-
-        stage('Push image to dockerhub') {
+        stage ('Login to Dockerhub') {
             agent {
                 docker {
                     image 'docker:latest'
@@ -37,9 +15,42 @@ pipeline {
             steps {
                 sh '''
                 echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin
-                docker build -t $DOCKER_REPO:latest .
-                docker push $DOCKER_REPO:latest
                 '''
+            }
+        }
+
+        stage('Install dependencies') {
+            steps {
+                script {
+                    docker.image('node:18-alpine').inside {
+                        sh '''
+                        echo "Remove old dependencies"
+                        rm -rf node_modules package-lock.json
+                        npm install
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Build project') {
+            steps {
+                script {
+                    docker.image('node:18-alpine').inside {
+                        sh 'npm run build'
+                    }
+                }
+            }
+        }
+
+        stage('Build and Push image to dockerhub') {
+            steps {
+                script {
+                    sh '''
+                    docker build -t $DOCKER_REPO:latest .
+                    docker push $DOCKER_REPO:latest
+                    '''
+                }
             }
         }
 
