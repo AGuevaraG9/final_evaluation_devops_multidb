@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  backend:
+    image: aguevarar29/backend-final-exam:latest
+    ports:
+      - "80:3000"
+    environment:
+      - DB_HOST=mysql-service
+      - DB_USER_NAME=user-root
+      - DB_NAME=users_db
+      - MY_DATABASE_DRIVER=mysql
+      - DB_PORT=3306
+      - DB_PASSWORD=your_database_password
+    depends_on:
+      - mysql
+      - postgres
+      - mongodb
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD=your_database_password
+      MYSQL_DATABASE=users_db
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./init-scripts:/docker-entrypoint-initdb.d
+
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_PASSWORD=your_database_password
+      POSTGRES_DB=users_db
+    ports:
+      - "5432:5432"
+    
+  mongodb:
+    image: mongo:4.4
+    environment:
+      MONGO_INITDB_ROOT_PASSWORD=your_database_password
+      MONGO_INITDB_DATABASE=users_db
+    ports:
+      - "27017:27017"
+
+volumes:
+  mysql-data:
+  db-backup-scripts:
